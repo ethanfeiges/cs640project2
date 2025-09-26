@@ -70,6 +70,7 @@ public class Switch extends Device
 	 */
 	public void handlePacket(Ethernet etherPacket, Iface inIface)
 	{
+		System.out.println("*** SWITCH DEBUG: handlePacket called! ***");
 		System.out.println("*** -> Received packet: " +
 				etherPacket.toString().replace("\n", "\n\t"));
 		
