@@ -70,9 +70,30 @@ public class Switch extends Device
 	 */
 	public void handlePacket(Ethernet etherPacket, Iface inIface)
 	{
-		System.out.println("*** SWITCH DEBUG: handlePacket called! ***");
-		System.out.println("*** -> Received packet: " +
-				etherPacket.toString().replace("\n", "\n\t"));
+		if (etherPacket == null || inIface == null) {
+			System.out.println("*** -> ERROR: Null packet or interface, returning");
+			return;
+		}
+		
+		// Get packet details
+		short etherType = etherPacket.getEtherType();
+		MACAddress sourceMac = etherPacket.getSourceMAC();
+		MACAddress destMac = etherPacket.getDestinationMAC();
+		
+		// Only show detailed debug for IPv4 packets (0x0800 = 2048) to reduce noise
+		boolean isIPv4 = (etherType == 0x0800);
+		
+		if (isIPv4) {
+			System.out.println("*** SWITCH DEBUG: IPv4 packet on " + inIface.getName() + " ***");
+			System.out.println("*** -> EtherType: " + etherType + " (IPv4)");
+			System.out.println("*** -> Source MAC: " + sourceMac);
+			System.out.println("*** -> Dest MAC: " + destMac);
+			System.out.println("*** -> Received packet: " +
+					etherPacket.toString().replace("\n", "\n\t"));
+		} else {
+			// Just log non-IPv4 packets briefly
+			System.out.println("*** Non-IPv4 packet: EtherType=" + etherType + " on " + inIface.getName());
+		}
 		
 		/********************************************************************/
 		/* TODO: Handle packets                                             */
@@ -81,7 +102,6 @@ public class Switch extends Device
 		cleanupMACTable();
 		
 		// Learn: Update MAC table with source MAC address and ingress interface
-		MACAddress sourceMac = etherPacket.getSourceMAC();
 		long currentTime = System.currentTimeMillis();
 		
 		// Check if we already know this MAC address
@@ -89,13 +109,18 @@ public class Switch extends Device
 		if (existingEntry != null) {
 			// Update timestamp for existing entry
 			existingEntry.updateTimestamp(currentTime);
+			if (isIPv4) {
+				System.out.println("*** -> Updated MAC table entry for " + sourceMac + " on " + inIface.getName());
+			}
 		} else {
 			// Add new entry to MAC table
 			macTable.put(sourceMac, new MACTableEntry(inIface, currentTime));
+			if (isIPv4) {
+				System.out.println("*** -> Learned new MAC " + sourceMac + " on " + inIface.getName());
+			}
 		}
 		
 		// Forward: Determine where to send the packet
-		MACAddress destMac = etherPacket.getDestinationMAC();
 		MACTableEntry destEntry = macTable.get(destMac);
 		
 		if (destEntry != null) {
@@ -103,16 +128,24 @@ public class Switch extends Device
 			Iface outIface = destEntry.getInterface();
 			// Don't send packet back out the interface it came from
 			if (!outIface.equals(inIface)) {
-				System.out.println("*** -> Forwarding packet out interface: " + outIface.getName());
+				if (isIPv4) {
+					System.out.println("*** -> Forwarding to known MAC " + destMac + " out interface: " + outIface.getName());
+				}
 				sendPacket(etherPacket, outIface);
+			} else if (isIPv4) {
+				System.out.println("*** -> Not forwarding packet back to same interface " + inIface.getName());
 			}
 		} else {
 			// We don't know where this destination MAC is - flood to all interfaces except ingress
-			System.out.println("*** -> Flooding packet to all interfaces except " + inIface.getName());
+			if (isIPv4) {
+				System.out.println("*** -> Unknown MAC " + destMac + ", flooding to all interfaces except " + inIface.getName());
+			}
 			for (Iface iface : interfaces.values()) {
 				// Don't send packet back out the interface it came from
 				if (!iface.equals(inIface)) {
-					System.out.println("*** -> Flooding packet out interface: " + iface.getName());
+					if (isIPv4) {
+						System.out.println("*** -> Flooding packet out interface: " + iface.getName());
+					}
 					sendPacket(etherPacket, iface);
 				}
 			}
