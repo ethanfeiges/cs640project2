@@ -96,8 +96,6 @@ public class Switch extends Device
 		}
 		
 		/********************************************************************/
-		/* TODO: Handle packets                                             */
-		
 		// Clean up expired MAC table entries
 		cleanupMACTable();
 		
